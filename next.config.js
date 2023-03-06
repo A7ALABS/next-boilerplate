@@ -10,6 +10,9 @@ const withPWA = require("next-pwa")({
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  experimental: {
+    forceSwcTransforms: true,
+  },
   images: {
     domains: ["cdn.discordapp.com", "localhost"],
   },

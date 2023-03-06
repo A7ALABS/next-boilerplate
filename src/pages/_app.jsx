@@ -1,4 +1,3 @@
-import { Head, Main, NextScript, Html } from "next/document";
 import React, { useRef, useEffect, useState } from "react";
 import "../../styles/globals.css";
 

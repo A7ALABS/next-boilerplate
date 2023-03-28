@@ -8,7 +8,7 @@ import "nprogress/nprogress.css";
 NProgress.configure({ showSpinner: true });
 
 // redux store
-import { useStore } from "react-redux";
+import { Provider, useStore } from "react-redux";
 import { wrapper } from "../store";
 import { PersistGate } from "redux-persist/integration/react";
 
@@ -16,6 +16,9 @@ import { PersistGate } from "redux-persist/integration/react";
 import { lightThemeWeb, darkThemeWeb } from "../theme/web";
 import { ThemeProvider } from "styled-components";
 
+// internationalization
+import { appWithTranslation } from "next-i18next";
+import nextI18NextConfig from "../../next-i18next.config.js";
 
 //Binding routing events.
 Router.events.on("routeChangeStart", () => {
@@ -28,57 +31,70 @@ Router.events.on("routeChangeError", () => NProgress.done());
 
 const ROUTES_TO_RETAIN = ["/"];
 
-export default wrapper.withRedux(({ Component, pageProps }) => {
-  const router = useRouter();
-  const retainedComponents = useRef({});
-  const isRetainableRoute = ROUTES_TO_RETAIN.includes(router.asPath);
+export default wrapper.withRedux(
+  appWithTranslation(({ Component, pageProps }) => {
+    const router = useRouter();
+    const retainedComponents = useRef({});
+    const isRetainableRoute = ROUTES_TO_RETAIN.includes(router.asPath);
 
-  // Add Component to retainedComponents if we haven't got it already
-  if (isRetainableRoute && !retainedComponents.current[router.asPath]) {
-    const MemoComponent = React.memo(Component);
-    retainedComponents.current[router.asPath] = {
-      component: <MemoComponent {...pageProps} />,
-      scrollPos: 0,
-    };
-  }
-
-  // Save the scroll position of current page before leaving
-  const handleRouteChangeStart = (url) => {
-    if (isRetainableRoute) {
-      retainedComponents.current[router.asPath].scrollPos = window.scrollY;
+    // Add Component to retainedComponents if we haven't got it already
+    if (isRetainableRoute && !retainedComponents.current[router.asPath]) {
+      const MemoComponent = React.memo(Component);
+      retainedComponents.current[router.asPath] = {
+        component: <MemoComponent {...pageProps} />,
+        scrollPos: 0,
+      };
     }
-  };
 
-  // Save scroll position - requires an up-to-date router.asPath
-  useEffect(() => {
-    router.events.on("routeChangeStart", handleRouteChangeStart);
-    return () => {
-      router.events.off("routeChangeStart", handleRouteChangeStart);
+    // Save the scroll position of current page before leaving
+    const handleRouteChangeStart = (url) => {
+      if (isRetainableRoute) {
+        retainedComponents.current[router.asPath].scrollPos = window.scrollY;
+      }
     };
-  }, [router.asPath]);
 
-  // Scroll to the saved position when we load a retained component
-  useEffect(() => {
-    if (isRetainableRoute) {
-      window.scrollTo(0, retainedComponents.current[router.asPath].scrollPos);
-    }
-  }, [Component, pageProps]);
+    // Save scroll position - requires an up-to-date router.asPath
+    useEffect(() => {
+      router.events.on("routeChangeStart", handleRouteChangeStart);
+      return () => {
+        router.events.off("routeChangeStart", handleRouteChangeStart);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [router.asPath]);
 
-  useEffect(() => {
-    history.scrollRestoration = "manual";
-  }, []);
+    // Scroll to the saved position when we load a retained component
+    useEffect(() => {
+      if (isRetainableRoute) {
+        window.scrollTo(0, retainedComponents.current[router.asPath].scrollPos);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [Component, pageProps]);
 
-  const [theme, setTheme] = useState(0);
-  const store = useStore();
-  store.subscribe((v) => {
-    setTheme(store.getState()?.fromClient?.theme);
-  });
-  return (
-    <PersistGate persistor={store.__persistor} loading={<div>Loading</div>}>
-      <ThemeProvider theme={theme == 0 ? lightThemeWeb : darkThemeWeb}>
-        
-          <Component {...pageProps} />
-      </ThemeProvider>
-    </PersistGate>
-  );
-});
+    useEffect(() => {
+      history.scrollRestoration = "manual";
+    }, []);
+
+    const [theme, setTheme] = useState(0);
+
+    const store = useStore();
+    store.subscribe((v) => {
+      setTheme(store.getState()?.fromClient?.theme);
+    });
+
+    const getLayout = Component.getLayout ?? ((page) => page);
+
+    return (
+      <Provider store={store}>
+        <PersistGate persistor={store.__persistor} loading={null}>
+          {() => (
+            <ThemeProvider
+              theme={theme == 0 || !theme ? darkThemeWeb : lightThemeWeb}
+            >
+              {getLayout(<Component {...pageProps} />)}
+            </ThemeProvider>
+          )}
+        </PersistGate>
+      </Provider>
+    );
+  }, nextI18NextConfig)
+);
